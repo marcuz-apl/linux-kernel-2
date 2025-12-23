@@ -1,6 +1,6 @@
-# Legacy Kernel 2001: Linux2.4 Env
+# Legacy Kernel Linux2.4
 
-After  [TreeNewBeer]  | Marcuz-apl | 2025-12-17                                                                                                
+Init'ed by  [TreeNewBeer]  | Mod'ed by marcuz-apl | 2025-12-17                                                                                                
 
 
 
@@ -18,7 +18,7 @@ Let's get hands dirty.
 
 Kernel 2.4, released in 2001, is too old to be compatible with the current GCC compiler.
 
-Then, docker container is introduced to resolve the compatibility issue, using Dedian Sarge release, which embeds GCC3.3. as such we could apply the QEMU on the host to test-run it.
+Then, docker container is introduced to resolve the compatibility issue, using Dedian Linux 3.1 (a.k.a. Sarge) released on 6 June 2005, which embeds GCC3.3. as such we could apply the QEMU on the host to test-run it.
 
 Please note, Kernel 2.4.0 introduces quite a lot of compiling errors, then we select Kernel 2.4.37.
 
@@ -26,7 +26,10 @@ Please note, Kernel 2.4.0 introduces quite a lot of compiling errors, then we se
 
 ## Spin up a old Debian container
 
-```bash
+```shell
+## Make folder for future boot
+mkdir boot
+## WOrking on kernel source code
 git clone https://github.com/hlleng/kernel2.4-lab.git
 cd kernel2.4-lab
 docker run --platform linux/386 -it -v $(pwd):/code debian/eol:sarge /bin/bash
@@ -35,6 +38,7 @@ docker run --platform linux/386 -it -v $(pwd):/code debian/eol:sarge /bin/bash
 Once entering into docker container, update the repo sources and install the packages as needed.
 
 ```bash
+## Update and Install packages
 apt-get update
 apt-get install -y gcc make binutils libncurses5-dev wget bzip2
 ## may need to update the PATH
@@ -57,21 +61,16 @@ make ARCH=i386 bzImage
 
 # Exit to the host
 exit
+## Copy bzImage to boot folder
+cd ../
+cp kernel2.4-lab/arch/i386/boot/bzImage boot/
 ```
 
 
 
-## Generate file system for testing
+## Generate or Use the filesystem for testing
 
-The making of his.img could be done as below:
-
-```bash
-# Install qemu toolkit, which could take quite a while, be patientß
-# sudo apt-get install qemu
-brew install qemu
-# Create the hda.img of 100MB size
-qemu-img create -f raw hda100.img 100M
-```
+The generating of **hda.img** could be done as below:
 
 Actually, what we need to do are: 
 
@@ -79,95 +78,77 @@ Actually, what we need to do are:
 - Prepare the user space with busybox
 - Create an `init` script  the image to avoid kernel panic
 
-#### A- Create the raw image
+#### A- Prepare the user space with BusyBox
+
+Busybox is a bundle of many basic Linux utilities, for example `ls`, `grep`, and `vi` are all included. Populate sub volume with the folders needed for the install. SInce the kernel is 32-bit, then the busybox has to be 32-bit as. well.
 
 ```shell
-## create a mounting folder
-mkdir $HOME/linuxfs
-docker run --privileged -it -v $HOME/linuxfs:/linuxfs debian:bookworm bash
-## you will be in a # prompt of `debian:bookworm`
-```
+## For a 32-bit hosts
+sudo apt install build-essential gcc make ncurses-dev wget
+## For 64-bit hosts
+sudo apt install build-essential libc6-dev-i386 gcc-multilib g++-multilib wget
 
-Then, create a raw disk image, basically it's a blank file and format it as `fat`.
-
-```shell
-## Create the blank file
-dd if=/dev/zero of=hda100.img bs=1M count=100
-## Format as msdos with `dosfstools`
-mkfs -t fat hda100.img
-```
-
-(OPTIONALLY) Verify the image inside the docker container:
-
-```shell
-## resume from above
-losetup -fP --show hda100.img
-#### This will return a /dev/loop0 ID, e.g. /dev/loop0
-
-## Mount it up
-mount /dev/loop0 /linuxfs
-## Enter the directory to see if it's formatted correctly
-cd /linuxfs
-ls -alh
-#### total 20K
-#### drwxr-xr-x 3 root root 4.0K Dec  5 23:47 .
-#### drwxr-xr-x 5 root root  160 Dec  5 23:46 ..
-#### drwx------ 2 root root  16K Dec  5 23:47 lost+found
-
-## Umount it
-umount /linuxfs
-```
-
-Then Copy the image to the mapped folder and exit the container.
-
-```shell
-## Copy the image to the folder
-mv hda100.img /linuxfs
-
-## Exit the container
-exit
-```
-
-#### B- Prepare the user space with BusyBox
-
-Busybox is a bundle of many basic Linux utilities, for example `ls`, `grep`, and `vi` are all included.
-
-```shell
 ## Back to project folder
 cd ../
-mkdir busybox
-## Download the BusyBox source code
-wget https://github.com/mirror/busybox/archive/refs/tags/1_36_1.tar.gz && tar -xf 1_36_1.tar.gz -C busybox --strip-components=1
-## Enter the fodler
-cd busybox
+mkdir busybox && cd busybox
+```
 
-## Edit busybox config
+Now you need to build a statically linked busybox binary. If you don't want to build it yourself, you can download a precompiled static busybox build.
+
+```shell
+wget https://busybox.net/downloads/busybox-1.37.0.tar.bz2
+# wget https://busybox.net/downloads/busybox-1.21.1.tar.bz2
+tar -xvf busybox-1.37.0.tar.bz2
+cd busybox-1.37.0
+```
+
+**Set the `ARCH` and `CROSS_COMPILE` environment variables**. If building natively on a 32-bit system, `CROSS_COMPILE` may not be necessary. When building on a 64-bit system, the native `gcc` can often target i386 using the `-m32` flag if the 32-bit libraries are installed.Set the architecture:
+
+```shell
+export ARCH=i386
+```
+
+(Note: `i386` is often an alias for `i486` or similar x86 32-bit architectures in the kernel/BusyBox build system). 
+
+**Create a default configuration**:
+
+```shell
+make defconfig
+```
+
+**Run the menu-based configuration tool** to select which applets to include, choose between static or dynamic linking, and configure other options. For embedded systems, static linking is often preferred to avoid library dependencies.
+
+```shell
 make menuconfig
 ```
 
-Please Go to `Settings --->` and toggle `[ ] Build static binary (no shared libraries)`. 
+In the menu, ensure you check:
 
-Now Let's build it.
+- **BusyBox Settings --> Build Options --> Build BusyBox as a static binary (no shared libs)**.
 
-```shell
-make -j$(nproc)
+**Compile BusyBox**
+Run the `make` command to compile the source code. The build system will use the configuration set in the previous steps. You can also pass the `-m32` flag to the compiler via `CFLAGS` and `LDFLAGS` if needed for 64-bit hosts:
+
+```
+# (Optional CFLAGS for 64-bit hosts if multilib is set up)
+# export CFLAGS="-m32"
+# export LDFLAGS="-m32"
+
+make
 ```
 
-Now Install the compiled busybox into a folder `initfamfs`:
+**Install the Compiled Binary**
+After compilation finishes, install the binary and associated symlinks into a local directory (e.g., `_install` in your source directory).
 
-```shell
-mkdir $HOME/initramfs
-make CONFIG_PREFIX=$HOME/initramfs install
+```
+make install
 ```
 
-Perform a little cleanup:
+The resulting i386 BusyBox binary will be located in the specified installation directory, ready for use in a minimal Linux environment or root filesystem. 
 
-```shell
-rm $HOME/initramfs/linuxrc
-ls -lah $HOME/initramfs
-```
 
-#### C- Create an init script
+
+#### B- Create an init script
 
 The kernel needs something to execute. It looks in `/init` for this file. On a normal linux system, this is a systemd binary, but here, it's just a shell script.
 
@@ -205,17 +186,72 @@ The change the mode of **init**.
 chmod +x ./init
 ```
 
-#### D- Create the initramfs archive
+#### C- Create the initramfs archive
 
 An initramfs is a `cpio archive`. This archive needs to contain all of the files in `initramfs/`, and pass it to `cpio` to create the archive saving to the parent folder (in this specific format):
 
 ```sh
-mkdir $HOME/boot
-find . | cpio -o -H newc > $HOME/boot/initrd.img
+find . | cpio -o -H newc > ../initrd.img
 ## the file name was init.cpio, i renamed as initrd.img, the same way as in Ubuntu
 ```
 
 `-o` creates/outputs a new archive, and `-H newc` specifies the type of the archive.
+
+#### D- Create the raw image
+
+```shell
+## create a mounting folder
+mkdir $HOME/linuxfs
+docker run --privileged -it -v $(pwd):/code debian:bookworm bash
+## you will be in a # prompt of `debian:bookworm`
+```
+
+Then, create a raw disk image, basically it's a blank file and format it as `fat`.
+
+```shell
+## Create the blank file
+dd if=/dev/zero of=hda100.img bs=1M count=100
+## Update and install package of `dosfatools`
+apt update
+apt install dosfstools
+## Format as msdos filesystem
+mkfs -t fat hda100.img
+```
+
+(OPTIONALLY) Verify the image inside the docker container:
+
+```shell
+## resume from above
+losetup -fP --show hda100.img
+#### This will return a /dev/loop0 ID, e.g. /dev/loop0
+
+## Mount it up
+mount /dev/loop0 /code
+## Enter the directory to see if it's formatted correctly
+cd /code
+ls -alh
+#### total 20K
+#### drwxr-xr-x 3 root root 4.0K Dec  5 23:47 .
+#### drwxr-xr-x 5 root root  160 Dec  5 23:46 ..
+
+apt install nano
+nano ./init
+#### Put the following lines into the file
+
+
+## Umount it
+umount /linuxfs
+```
+
+Then Copy the image to the mapped folder and exit the container.
+
+```shell
+## Copy the image to the folder
+mv hda100.img /linuxfs
+
+## Exit the container
+exit
+```
 
 #### E- Install the boot loader (syslinux)
 
