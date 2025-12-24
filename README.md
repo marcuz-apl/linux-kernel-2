@@ -61,21 +61,19 @@ make ARCH=i386 bzImage
 # Exit to the host
 exit
 ## Copy bzImage to boot folder
-cd ../
-cp kernel2.4-lab/arch/i386/boot/bzImage boot/
+cp arch/i386/boot/bzImage ../boot/
+cd ..
 ```
 
 
 
 ## Use the filesystem
 
-The generating of **hda.img** could be done as below:
+The generating of **hda.img** could be done in a complex method. then we are simply gonna use the ready-to-use `had.img` (64GB) for later practice.:
 
 ```shell
 cp kernel2.4-lab/hda.img boot/
 ```
-
-Simply, use the ready-to-use `had.img` (64GB) for later practice.
 
 
 
