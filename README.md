@@ -84,8 +84,14 @@ Execute `QEMU`, loading the kernel and file system.
 ```bash
 ## Go to boot folder
 cd boot/
-qemu-system-i386 -kernel ./bzImage -hda ./hda.img -nographic
-     -append "root=/dev/hda init=/init console=ttyS0"
+qemu-system-i386 -kernel bzImage \
+	-hda hda.img \
+	-nographic -append "root=/dev/hda init=/init console=ttyS0"
+
+## In some cases:
+qemu-system-i386 -machine type=pc-i440fx-3.1 -kernel bzImage \
+	-drive format=raw,file=hda.img \
+	-nographic -append "root=dev/hda init=/init console=ttyS0"
 ```
 
 As of now, we shall be okay to enter into the kernel system.

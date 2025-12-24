@@ -1,6 +1,6 @@
 # Build a kernel, initramfs and Busybox to create your own micro-Linux
 
-Feb 10, 2024 by [Thibault Debatty](https://cylab.be/blog/author/1)  | Mod'ed by marcuz-apl | 2025-12-17                                                                                                
+Feb 10, 2024 by [Thibault Debatty](https://cylab.be/blog/author/1)  | Mod by marcuz-apl | 2025-12-17                                                                                                
 
 
 
@@ -14,26 +14,31 @@ A regular Linux user will probably never have to compile it’s own Linux kernel
 
 Typically, the Linux kernel only has a few built-in drivers. Additional drivers are compiled as modules that must be separately loaded in memory. Some of these modules may be required to mount the root filesystem. Hence the Linux boot process typically has 2 step :
 
-1. the bootloader loads the kernel into memory, and mounts an initial filesystem (initramfs)
-2. the initramfs contains kernel modules and an init script that will load required modules and mount the actual filesystem so the kernel can continue the boot process
+1. **the bootloader loads the kernel into memory**, and 
+2. **mounts an initial filesystem (initramfs)**
+3. the initramfs contains kernel modules and an init script that will load required modules and mount the actual filesystem so the kernel can continue the boot process
 
-The initramfs is a compressed (gz) cpio archive. Cpio is an archive format similar to tar, but is much more simple and requires only little code in the kernel [1]. There is an older but similar mechanism called the initial RAM disk or initrd, that uses a full disk image as inital firlesystem. Still now, some bootloaders, and qemu (as we will see below) use the parameter `-initrd` to load the initramfs.
+The **initramfs** is a compressed (gz) cpio archive. **cpio** is an archive format similar to tar, but is much more simple and requires only little code in the kernel. There is an older but similar mechanism called the initial RAM disk or initrd, that uses a full disk image as initial firlesystem. Still now, some bootloaders, and QEMU (as we will see below) use the parameter `-initrd` to load the initramfs.
 
 In this blog post, we compile a small Linux kernel, and we will create a minimal initramfs archive that contains the basic Linux command line tools. This allows to create a minimal system running directly from memory.
 
+
+
 ## Prerequisites
 
-To build the kernel and test with qemu, you will need a few tools and libraries:
+To build the kernel and test with QEMU, you will need a few tools and libraries:
 
 ```bash
-sudo apt install -y build-essential libncurses-dev libelf-dev libssl-dev 
+sudo apt install -y gcc make build-essential libncurses-dev libelf-dev libssl-dev 
 ```
 
 And, to test with qemu:
 
 ```bash
-sudo apt install qemu-system-x86 flex bison
+sudo apt install -y qemu-system-x86 flex bison
 ```
+
+
 
 ## Kernel
 
@@ -65,18 +70,18 @@ Then, we can add or remove features using
 make menuconfig
 ```
 
-This will open a *ncurses* menu that allows to select kernel features.
+This will open a *menuconfig* menu that allows to select kernel features.
 
-[![make-menuconfig.png](https://cylab.be/storage/blog/320/files/22lKEdnG5O5hINd6/make-menuconfig.png)](https://cylab.be/storage/blog/320/files/22lKEdnG5O5hINd6/make-menuconfig.png)
+![make-menuconfig.png](./assets/make-menuconfig.png)
 
 As a bare minimum, make sure the following options are enabled:
 
 - General setup:
-  - Initial RAM filesystem and RAM disk (initramfs/initrd) support
-- 64-bit kernel
+  - **Initial RAM filesystem and RAM disk (initramfs/initrd) support**
+- **64-bit kernel**
 - Device Drivers —> Generic Driver Options:
-  - Maintain a devtmpfs filesystem to mount at /dev
-  - Automount devtmpfs at /dev, after the kernel mounted the rootfs
+  - **Maintain a devtmpfs filesystem to mount at /dev**
+  - **Automount devtmpfs at /dev, after the kernel mounted the rootfs**
 
 When done, save your kernel configuration and exit.
 
@@ -90,11 +95,15 @@ make -j 8 bzImage
 
 where `-j 8` tells make to run 8 jobs in parallel.
 
-After a few minutes, the build process should end with `Kernel: arch/x86/boot/bzImage is ready`. Let’s copy the kernel to the root of our project:
+After a few minutes, the build process should end with `Kernel: arch/x86/boot/bzImage is ready`. 
+
+Let’s copy the kernel to the root of our project:
 
 ```bash
 cp arch/x86_64/boot/bzImage ../
 ```
+
+
 
 ## Busybox
 
@@ -125,7 +134,7 @@ sudo apt install libncurses-dev flex bison build-essential libssl-dev libelf-dev
 make menuconfig
 ```
 
-[![busybox-menuconfig.png](https://cylab.be/storage/blog/320/files/rT9k88A7JaBD0L9Z/busybox-menuconfig.png)](https://cylab.be/storage/blog/320/files/rT9k88A7JaBD0L9Z/busybox-menuconfig.png)
+![busybox-menuconfig.png](./assets/busybox-menuconfig.png)
 
 This time, make sure to enable `Settings ---> Build static binary (no shared libs)`
 
@@ -137,6 +146,8 @@ make install
 ```
 
 The `busybox` binary and links will be installed in `_install`
+
+
 
 ## Initramfs
 
@@ -192,7 +203,9 @@ find . -print0 | cpio --null -ov --format=newc | gzip -9 > ../initrd.img
 cd ../
 ```
 
-## Testing with qemu
+
+
+## Testing with QEMU
 
 We can now test the micro system with qemu:
 
@@ -201,11 +214,11 @@ qemu-system-x86_64 -kernel bzImage -initrd initrd.img
     -nographic -append "console=ttyS0"
 ```
 
-[![qemu-busybox.png](https://cylab.be/storage/blog/320/files/zJPY22dB1PaN8Uwf/qemu-busybox.png)](https://cylab.be/storage/blog/320/files/zJPY22dB1PaN8Uwf/qemu-busybox.png)
+![qemu-busybox.png](./assets/qemu-busybox.png)
 
-You can stop qemu by hitting `ctrl + a` and then `x`.
+You can stop **QEMU** by hitting `ctrl + a` and then `x`.
 
-Once this is working, you can continue by testing other features and modify the init script…
+Once this is working, you can continue by testing other features and modify the **init** script…
 
 
 
